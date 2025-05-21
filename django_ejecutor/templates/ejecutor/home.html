@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block title %}Inicio - Gestor de Ejecutables{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="jumbotron bg-light p-4 rounded mb-4">
+            <h1 class="display-4">Gestor de Ejecutables Windows</h1>
+            <p class="lead">Plataforma para administrar y ejecutar aplicaciones Windows (.exe) en un entorno controlado.</p>
+            <hr class="my-4">
+            <p>Seleccione una categoría para comenzar o vea los ejecutables recientemente utilizados.</p>
+            <a class="btn btn-primary btn-lg" href="{% url 'list_executables' %}" role="button">
+                <i class="fas fa-list me-2"></i>Ver todos los ejecutables
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="mb-3"><i class="fas fa-folder-open me-2"></i>Categorías</h2>
+    </div>
+
+    {% if categories %}
+        {% for category in categories %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ category.name }}</h5>
+                        <p class="card-text">{{ category.description|truncatechars:100 }}</p>
+                    </div>
+                    <div class="card-footer bg-transparent border-top-0">
+                        <a href="{% url 'list_executables_by_category' category.id %}" class="btn btn-outline-primary">
+                            <i class="fas fa-chevron-right me-1"></i> Ver ejecutables
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i> No hay categorías disponibles. Contacte con el administrador.
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-3"><i class="fas fa-history me-2"></i>Recientes</h2>
+    </div>
+
+    {% if recent_executables %}
+        {% for executable in recent_executables %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ executable.name }}</h5>
+                        <p class="card-text">{{ executable.description|truncatechars:100 }}</p>
+                        {% if executable.last_executed %}
+                            <p class="card-text text-muted">
+                                <small>Última ejecución: {{ executable.last_executed|date:"d/m/Y H:i" }}</small>
+                            </p>
+                        {% endif %}
+                    </div>
+                    <div class="card-footer bg-transparent border-top-0">
+                        <a href="{% url 'execute_executable' executable.id %}" class="btn btn-success">
+                            <i class="fas fa-play me-1"></i> Ejecutar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i> No hay ejecutables utilizados recientemente.
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

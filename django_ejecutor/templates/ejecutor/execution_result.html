@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Resultado de Ejecución - Gestor de Ejecutables{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header {% if result.success %}bg-success{% else %}bg-danger{% endif %} text-white">
+                <h5 class="mb-0">
+                    {% if result.success %}
+                        <i class="fas fa-check-circle me-2"></i>Ejecución Exitosa: {{ executable.name }}
+                    {% else %}
+                        <i class="fas fa-exclamation-circle me-2"></i>Error en la Ejecución: {{ executable.name }}
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h6>Información de la Ejecución:</h6>
+                    <ul class="list-group mb-3">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Estado:
+                            {% if result.success %}
+                                <span class="badge bg-success">Exitoso</span>
+                            {% else %}
+                                <span class="badge bg-danger">Error</span>
+                            {% endif %}
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Código de Salida:
+                            <span class="badge {% if result.exit_code == 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ result.exit_code }}
+                            </span>
+                        </li>
+                        <li class="list-group-item">
+                            Fecha y Hora: {{ log.executed_at|date:"d/m/Y H:i:s" }}
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="mb-4">
+                    <h6>Salida:</h6>
+                    <div class="p-3 bg-light rounded overflow-auto" style="max-height: 300px;">
+                        <pre>{{ result.output|default:"No hay salida disponible." }}</pre>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <a href="{% url 'execute_executable' executable.id %}" class="btn btn-primary">
+                        <i class="fas fa-sync-alt me-1"></i> Ejecutar de nuevo
+                    </a>
+                    <a href="{% url 'list_executables' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> Volver a la lista
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

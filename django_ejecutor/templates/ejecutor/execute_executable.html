@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Ejecutar {{ executable.name }} - Gestor de Ejecutables{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-play me-2"></i>Ejecutar: {{ executable.name }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h6>Descripción:</h6>
+                    <p>{{ executable.description|linebreaksbr }}</p>
+
+                    {% if executable.category %}
+                        <h6>Categoría:</h6>
+                        <p><span class="badge bg-info">{{ executable.category.name }}</span></p>
+                    {% endif %}
+
+                    <h6>Tipo:</h6>
+                    <p>{% if executable.type == 'uploaded' %}Archivo Subido{% else %}Preinstalado{% endif %}</p>
+
+                    {% if executable.command_args %}
+                        <h6>Parámetros predeterminados:</h6>
+                        <p><code>{{ executable.command_args }}</code></p>
+                    {% endif %}
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="{{ form.arguments.id_for_label }}" class="form-label">Argumentos adicionales:</label>
+                        {{ form.arguments }}
+                        <div class="form-text">Los argumentos adicionales se agregarán después de los parámetros predeterminados.</div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="realtime" name="realtime">
+                        <label class="form-check-label" for="realtime">Ver resultados en tiempo real</label>
+                        <div class="form-text">Marque esta opción para ver la salida del ejecutable a medida que se genera.</div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i> Al ejecutar este archivo, se iniciará en el servidor. Asegúrese de que sea seguro.
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-play me-1"></i> Ejecutar {{ executable.name }}
+                        </button>
+                        <a href="{% url 'list_executables' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i> Volver a la lista
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
