@@ -36,6 +36,12 @@
                         <div class="form-text">Los argumentos adicionales se agregarán después de los parámetros predeterminados.</div>
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label">Entorno de ejecución:</label>
+                        {{ form.environment }}
+                        <div class="form-text">Seleccione si desea ejecutar con Wine o DOSBox.</div>
+                    </div>
+
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="realtime" name="realtime">
                         <label class="form-check-label" for="realtime">Ver resultados en tiempo real</label>

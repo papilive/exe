@@ -165,48 +165,45 @@ def execute_executable(request, executable_id):
                 else:
                     arguments = form.cleaned_data['arguments']
 
+            # Obtener entorno de ejecución
+            environment = form.cleaned_data.get('environment', 'wine')
+
             # Get the full path to the executable
             executable_path = executable.get_full_path()
             if not executable_path or not os.path.exists(executable_path):
                 messages.error(request, "El archivo ejecutable no está disponible")
                 return redirect('list_executables')
 
-            # Execute the file (with or without real-time streaming)
-            result = execute_file(executable_path, arguments, realtime=use_realtime)
+            # Ejecutar usando script externo con entorno seleccionado
+            from subprocess import Popen, PIPE
+            import shlex
+            script_path = '/workspaces/exe/setup_titus_novnc.sh'
+            script_args = [script_path]
+            if environment == 'dosbox':
+                script_args.append('--dosbox')
+            # Llamada al script (no bloqueante, para no colgar el servidor)
+            Popen(script_args)
 
-            # Create execution log
-            execution_uuid = result.get('execution_id', str(uuid.uuid4()))
-
-            # For real-time execution, we create a log entry that will be updated later
+            # Guardar log y actualizar estadísticas como antes
+            execution_uuid = str(uuid.uuid4())
             log = ExecutionLog(
                 execution_uuid=execution_uuid,
                 executable=executable,
                 user=request.user,
-                success=None if use_realtime else result.get('success', False),
-                output='' if use_realtime else result.get('output', ''),
-                exit_code=None if use_realtime else result.get('exit_code', -1),
+                success=None,
+                output='',
+                exit_code=None,
                 ip_address=request.META.get('REMOTE_ADDR'),
                 is_realtime=use_realtime,
-                completed=not use_realtime
+                completed=False
             )
             log.save()
-
-            # Update executable statistics
             executable.last_executed = timezone.now()
             executable.execution_count += 1
             executable.save()
 
-            if use_realtime:
-                # For real-time execution, redirect to the real-time view
-                return redirect('realtime_execution', execution_id=execution_uuid)
-            else:
-                # For traditional execution, show the result page
-                context = {
-                    'executable': executable,
-                    'result': result,
-                    'log': log,
-                }
-                return render(request, 'ejecutor/execution_result.html', context)
+            messages.success(request, f"Ejecución iniciada en entorno {environment.upper()}. Acceda vía noVNC.")
+            return redirect('execution_logs')
     else:
         form = ExecutableArgumentsForm()
 

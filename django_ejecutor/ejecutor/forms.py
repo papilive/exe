@@ -78,10 +78,20 @@ class ExecutableSelectionForm(forms.Form):
             )
 
 class ExecutableArgumentsForm(forms.Form):
-    """Form for specifying arguments for executable execution."""
+    """Form for specifying arguments and environment for executable execution."""
     arguments = forms.CharField(
         max_length=500,
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control'}),
         label="Argumentos adicionales"
+    )
+    ENV_CHOICES = [
+        ("wine", "Wine"),
+        ("dosbox", "DOSBox")
+    ]
+    environment = forms.ChoiceField(
+        choices=ENV_CHOICES,
+        widget=forms.RadioSelect,
+        initial="wine",
+        label="Entorno de ejecución"
     )
