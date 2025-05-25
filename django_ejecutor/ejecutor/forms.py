@@ -9,7 +9,7 @@ class ExecutableFileUploadForm(forms.ModelForm):
     """Form for uploading executable files."""
     class Meta:
         model = ExecutableFile
-        fields = ['name', 'description', 'file', 'category', 'command_args']
+        fields = ['name', 'description', 'file_path', 'category', 'command_args']
         widgets = {
             'description': forms.Textarea(attrs={'rows': 4}),
         }
@@ -27,9 +27,9 @@ class ExecutableFileUploadForm(forms.ModelForm):
             if ext != '.exe':
                 raise forms.ValidationError("Solo se permiten archivos .exe")
 
-            # Check file size (limit to 100MB)
-            if file.size > 100 * 1024 * 1024:
-                raise forms.ValidationError("El archivo no puede superar los 100MB")
+            # Check file size (limit to 10MB)
+            if file.size > 10 * 1024 * 1024:
+                raise forms.ValidationError("El archivo no puede superar los 10MB")
         else:
             raise forms.ValidationError("Debe seleccionar un archivo")
         return file

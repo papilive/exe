@@ -27,17 +27,16 @@ class ExecutableCategory(models.Model):
 
 class ExecutableFile(models.Model):
     """Model for executable files."""
-    TYPE_CHOICES = (
-        ('uploaded', 'Archivo Subido'),
-        ('preinstalled', 'Preinstalado en Servidor'),
-    )
-
+    TYPE_CHOICES = [
+        ('uploaded', 'Subido'),
+        ('preinstalled', 'Pre-instalado'),
+    ]
     name = models.CharField(max_length=200, verbose_name="Nombre")
     description = models.TextField(blank=True, verbose_name="Descripción")
-    file = models.FileField(upload_to=executable_file_path, blank=True, null=True, verbose_name="Archivo Ejecutable")
-    file_path = models.CharField(max_length=500, blank=True, verbose_name="Ruta del Archivo")
-    category = models.ForeignKey(ExecutableCategory, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Categoría")
+    file = models.FileField(upload_to=executable_file_path, null=True, blank=True, verbose_name="Archivo")
+    file_path = models.CharField(max_length=500, verbose_name="Ruta del Archivo")
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='uploaded', verbose_name="Tipo")
+    category = models.ForeignKey(ExecutableCategory, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Categoría")
     uploader = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Subido por")
     upload_date = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Subida")
     last_executed = models.DateTimeField(null=True, blank=True, verbose_name="Última Ejecución")
@@ -56,9 +55,7 @@ class ExecutableFile(models.Model):
         """Return the full path to the executable file."""
         if self.type == 'uploaded' and self.file:
             return self.file.path
-        elif self.type == 'preinstalled' and self.file_path:
-            return os.path.join(settings.PREINSTALLED_FILES_DIR, self.file_path)
-        return None
+        return os.path.join(settings.PREINSTALLED_FILES_DIR, self.file_path)
 
     def save(self, *args, **kwargs):
         """Override save method to update file_path for uploaded files."""

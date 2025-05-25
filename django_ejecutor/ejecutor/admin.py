@@ -15,19 +15,32 @@ class ExecutableFileAdmin(admin.ModelAdmin):
     """Admin view for ExecutableFile model."""
     list_display = ('name', 'category', 'type', 'upload_date', 'last_executed', 'execution_count', 'is_active')
     list_filter = ('type', 'category', 'is_active')
-    search_fields = ('name', 'description')
+    search_fields = ('name', 'description', 'file_path')
     readonly_fields = ('upload_date', 'last_executed', 'execution_count')
-    fieldsets = (
-        ('Información Básica', {
-            'fields': ('name', 'description', 'category', 'is_active')
-        }),
-        ('Archivo', {
-            'fields': ('type', ('file', 'file_path'), 'command_args')
-        }),
-        ('Metadatos', {
-            'fields': ('uploader', 'upload_date', 'last_executed', 'execution_count')
-        }),
-    )
+
+    def get_fieldsets(self, request, obj=None):
+        """Devuelve los fieldsets según el tipo de ejecutable."""
+        fieldsets = [
+            ('Información Básica', {
+                'fields': ('name', 'description', 'category', 'type', 'is_active')
+            }),
+            ('Metadatos', {
+                'fields': ('uploader', 'upload_date', 'last_executed', 'execution_count')
+            }),
+        ]
+
+        # Si es un ejecutable subido, mostrar el campo de archivo
+        if obj is None or obj.type == 'uploaded':
+            fieldsets.insert(1, ('Archivo Subido', {
+                'fields': ('file', 'command_args')
+            }))
+        # Si es un ejecutable pre-instalado, mostrar el campo de ruta
+        else:
+            fieldsets.insert(1, ('Archivo Pre-instalado', {
+                'fields': ('file_path', 'command_args')
+            }))
+
+        return fieldsets
 
 @admin.register(ExecutionLog)
 class ExecutionLogAdmin(admin.ModelAdmin):

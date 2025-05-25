@@ -6,8 +6,16 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+# Disable default admin interface
+admin.site.site_header = 'Papiweb Admin'
+admin.site.site_title = 'Papiweb Admin'
+admin.site.index_title = 'Administración'
+admin.autodiscover()
+admin.site.enable_nav_sidebar = False
+
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # No incluimos el admin de Django por defecto
+    # path('admin/', admin.site.urls),
     path('', include('ejecutor.urls')),
 ]
 

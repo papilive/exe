@@ -1,11 +1,15 @@
 # Gestor de Ejecutables Windows
 
+Desarrollado por: **Papiweb Desarrollos Informáticos**
+
+_Soluciones innovadoras para la gestión y ejecución de aplicaciones Windows_
+
 Aplicación Django para gestionar y ejecutar archivos .exe de Windows en un entorno controlado.
 
 ## Características
 
 - Almacenamiento y gestión de archivos ejecutables (.exe)
-- Ejecución controlada de archivos en un servidor Windows
+- Ejecución controlada de archivos en Windows o Linux (usando Wine)
 - Soporte para archivos subidos y preinstalados en el servidor
 - Registro detallado de ejecuciones
 - Visualización de resultados en tiempo real mediante WebSockets
@@ -16,44 +20,56 @@ Aplicación Django para gestionar y ejecutar archivos .exe de Windows en un ento
 
 - Python 3.8 o superior
 - Django 4.2 o superior
-- Sistema operativo Windows (para la ejecución de archivos .exe)
+- Sistema operativo Windows o Linux con Wine instalado
 
-## Instalación
+### Requisitos adicionales para Linux
 
-1. Clonar o descargar este repositorio:
+- Wine 64-bit (recomendado wine64)
+- X11 o servidor gráfico virtual (para aplicaciones gráficas)
+
+## Instalación en Linux con Wine
+
+1. Instalar Wine (ejemplo para Ubuntu/Debian):
 
 ```bash
-git clone <repositorio>
-cd django_ejecutor
+sudo dpkg --add-architecture i386
+sudo apt-get update
+sudo apt-get install wine64 wine32
 ```
 
-2. Crear y activar un entorno virtual:
+2. Configurar Wine:
+
+```bash
+./scripts/setup_wine.sh
+```
+
+3. Crear y activar un entorno virtual:
 
 ```bash
 python -m venv venv
-venv\Scripts\activate  # En Windows
+source venv/bin/activate
 ```
 
-3. Instalar las dependencias:
+4. Instalar las dependencias:
 
 ```bash
-pip install django
+pip install -r requirements.txt
 ```
 
-4. Realizar las migraciones:
+5. Realizar las migraciones:
 
 ```bash
 python manage.py makemigrations
 python manage.py migrate
 ```
 
-5. Crear un superusuario:
+6. Crear un superusuario:
 
 ```bash
 python manage.py createsuperuser
 ```
 
-6. Iniciar el servidor:
+7. Iniciar el servidor:
 
 ```bash
 python manage.py runserver
@@ -130,3 +146,20 @@ La aplicación permite visualizar los resultados de la ejecución en tiempo real
 ## Configuración en Windows
 
 Para ejecutar correctamente archivos .exe, la aplicación debe desplegarse en un servidor Windows. Consulte el archivo `WINDOWS_SETUP.md` para instrucciones detalladas sobre cómo configurar el proyecto en un entorno Windows.
+
+## Autor
+
+### Papiweb Desarrollos Informáticos
+
+Especialistas en soluciones tecnológicas innovadoras y desarrollo de software a medida.
+
+- Desarrollo de aplicaciones web y de escritorio
+- Soluciones de automatización empresarial
+- Consultoría tecnológica
+- Integración de sistemas
+
+Para más información o consultas sobre el proyecto, contacte con:
+* Email: info@papiweb.dev
+* Web: www.papiweb.dev
+
+© 2025 Papiweb Desarrollos Informáticos. Todos los derechos reservados.

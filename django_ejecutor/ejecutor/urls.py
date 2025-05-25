@@ -5,6 +5,11 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    # Authentication views
+    path('login/', views.user_login, name='login'),
+    path('logout/', views.user_logout, name='logout'),
+    path('auth-status/', views.check_auth_status, name='auth_status'),
+
     # Public views
     path('', views.home, name='home'),
     path('ejecutables/', views.list_executables, name='list_executables'),

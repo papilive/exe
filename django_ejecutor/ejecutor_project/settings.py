@@ -1,20 +1,22 @@
 """
 Django settings for ejecutor_project project.
 """
-
 import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Quick-start development settings - unsuitable for production
+# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-cj3e4k5m6n7b8v9c0x9z8y7x6c5v4b3n2m1b2v3c'
+SECRET_KEY = 'django-insecure-your-secret-key-here'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
@@ -59,19 +61,23 @@ TEMPLATES = [
 WSGI_APPLICATION = 'ejecutor_project.wsgi.application'
 ASGI_APPLICATION = 'ejecutor_project.asgi.application'
 
-# Channels configuration
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
-    },
-}
-
 # Database
+# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
+}
+
+# Channel layers for WebSocket
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [('localhost', 6379)],
+        },
+    },
 }
 
 # Password validation
@@ -91,7 +97,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-LANGUAGE_CODE = 'es-es'
+LANGUAGE_CODE = 'es'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
@@ -105,16 +111,13 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Pre-installed executables directory
+PREINSTALLED_FILES_DIR = os.path.join(BASE_DIR, 'preinstalled_executables')
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Login URL
-LOGIN_URL = '/admin/login/'
-
-# Executable files storage
-EXECUTABLE_FILES_DIR = os.path.join(MEDIA_ROOT, 'executables')
-PREINSTALLED_FILES_DIR = os.path.join(BASE_DIR, 'preinstalled_executables')
-
-# Create necessary directories
-os.makedirs(EXECUTABLE_FILES_DIR, exist_ok=True)
-os.makedirs(PREINSTALLED_FILES_DIR, exist_ok=True)
+# Login settings
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/home/'
+LOGOUT_REDIRECT_URL = '/'

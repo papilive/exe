@@ -2,14 +2,17 @@
 Views for the ejecutor app.
 """
 from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.http import HttpResponse, JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
-from django.conf import settings
-from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.http import JsonResponse, HttpResponseRedirect
 from django.urls import reverse
-from django.db.models import Q
+from django.contrib import messages
+from django.middleware.csrf import get_token
+from django.views.decorators.http import require_http_methods
+from django.conf import settings
+import json
+from functools import wraps
 
 from .models import ExecutableFile, ExecutableCategory, ExecutionLog
 from .forms import (
@@ -18,218 +21,135 @@ from .forms import (
     ExecutableSelectionForm,
     ExecutableArgumentsForm
 )
-
-import subprocess
-import os
-import json
-import logging
-import uuid
 from .execution import ExecutionManager
-import platform
 
-logger = logging.getLogger(__name__)
+def staff_required(view_func):
+    """Decorador para verificar si el usuario es staff."""
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_staff:
+            messages.error(request, "Acceso denegado. Se requieren privilegios de administrador.")
+            return redirect('home')
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
 
-# Helper functions
-def is_admin(user):
-    """Check if user is an admin."""
-    return user.is_authenticated and user.is_staff
-
-def execute_file(executable_path, arguments=None, realtime=False):
-    """
-    Execute a Windows executable file and return the result.
-
-    Args:
-        executable_path: Path to the executable file
-        arguments: Command line arguments
-        realtime: Whether to use real-time output streaming
-
-    Returns:
-        Dictionary with execution result or execution_id for real-time execution
-    """
-    # Check if we're on Windows
-    is_windows = platform.system() == 'Windows'
-
-    if realtime:
-        # For real-time execution, we return an execution ID
-        # The actual execution happens asynchronously
-        execution_id = str(uuid.uuid4())
-        ExecutionManager.execute_file_async(executable_path, arguments, execution_id)
-
-        return {
-            'execution_id': execution_id,
-            'realtime': True
-        }
-    else:
-        # Traditional synchronous execution
-        # This should be executed on a Windows server
-        cmd = [executable_path]
-        if arguments:
-            cmd.extend(arguments.split())
-
+def handle_unauthorized(view_func):
+    """Decorador para manejar errores de autenticación."""
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
         try:
-            # If on Windows, use CREATE_NO_WINDOW flag
-            creation_flags = 0
-            if is_windows and hasattr(subprocess, 'CREATE_NO_WINDOW'):
-                creation_flags = subprocess.CREATE_NO_WINDOW
-
-            # Execute the command and capture output
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-                creationflags=creation_flags,
-                shell=True  # Security note: This is a potential security risk
-            )
-            stdout, stderr = process.communicate(timeout=60)  # 60 seconds timeout
-
-            output = stdout + stderr
-            exit_code = process.returncode
-            success = exit_code == 0
-
-            return {
-                'success': success,
-                'output': output,
-                'exit_code': exit_code,
-                'realtime': False
-            }
-        except subprocess.TimeoutExpired:
-            return {
-                'success': False,
-                'output': 'Execution timed out after 60 seconds',
-                'exit_code': -1,
-                'realtime': False
-            }
+            return view_func(request, *args, **kwargs)
         except Exception as e:
-            return {
-                'success': False,
-                'output': f'Error executing file: {str(e)}',
-                'exit_code': -1,
-                'realtime': False
-            }
+            if isinstance(e, PermissionError):
+                messages.error(request, "No tiene permisos para realizar esta acción.")
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'No autorizado',
+                    'code': 401,
+                    'detail': str(e)
+                }, status=401)
+            raise
+    return _wrapped_view
 
-# View functions
+def ensure_csrf_cookie_wrapped(view_func):
+    """Decorador para asegurar que la cookie CSRF está establecida."""
+    def wrapped_view(request, *args, **kwargs):
+        response = view_func(request, *args, **kwargs)
+        get_token(request)  # Forzar generación de token CSRF
+        return response
+    return wrapped_view
+
+@ensure_csrf_cookie
 def home(request):
-    """Home page view."""
+    """Vista de la página principal."""
+    executables = ExecutableFile.objects.filter(is_active=True).order_by('-upload_date')[:5]
     categories = ExecutableCategory.objects.all()
-    recent_executables = ExecutableFile.objects.filter(is_active=True).order_by('-last_executed')[:5]
-
-    context = {
+    return render(request, 'ejecutor/home.html', {
+        'executables': executables,
         'categories': categories,
-        'recent_executables': recent_executables,
-    }
-    return render(request, 'ejecutor/home.html', context)
+    })
 
 def list_executables(request, category_id=None):
-    """List available executables, optionally filtered by category."""
-    query = request.GET.get('q', '')
-
+    """Vista para listar los ejecutables disponibles."""
     executables = ExecutableFile.objects.filter(is_active=True)
-
-    category = None
     if category_id:
-        category = get_object_or_404(ExecutableCategory, id=category_id)
-        executables = executables.filter(category=category)
-
-    if query:
-        executables = executables.filter(
-            Q(name__icontains=query) | Q(description__icontains=query)
-        )
-
+        executables = executables.filter(category_id=category_id)
     categories = ExecutableCategory.objects.all()
-
-    context = {
+    return render(request, 'ejecutor/list_executables.html', {
         'executables': executables,
         'categories': categories,
         'current_category': category_id,
-        'query': query,
-    }
-    return render(request, 'ejecutor/list_executables.html', context)
+    })
+
+def user_login(request):
+    """Vista para el login de usuarios."""
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect('home')
+        messages.error(request, 'Usuario o contraseña incorrectos.')
+    return render(request, 'ejecutor/login.html')
+
+def user_logout(request):
+    """Vista para el logout de usuarios."""
+    logout(request)
+    return redirect('home')
+
+@login_required
+def check_auth_status(request):
+    """Verificar el estado de autenticación del usuario."""
+    return JsonResponse({
+        'authenticated': True,
+        'is_staff': request.user.is_staff,
+        'csrf_token': get_token(request),
+    })
+
+@login_required
+@staff_required
+def admin_dashboard(request):
+    """Vista del panel de administración."""
+    executables = ExecutableFile.objects.all().order_by('-upload_date')
+    categories = ExecutableCategory.objects.all()
+    upload_form = ExecutableFileUploadForm()
+    preinstalled_form = PreinstalledExecutableForm()
+    return render(request, 'ejecutor/admin_dashboard.html', {
+        'executables': executables,
+        'categories': categories,
+        'upload_form': upload_form,
+        'preinstalled_form': preinstalled_form,
+    })
 
 @login_required
 def execute_executable(request, executable_id):
-    """View for executing a selected executable."""
-    executable = get_object_or_404(ExecutableFile, id=executable_id, is_active=True)
-
+    """Vista para ejecutar un archivo ejecutable."""
+    executable = get_object_or_404(ExecutableFile, pk=executable_id, is_active=True)
     if request.method == 'POST':
         form = ExecutableArgumentsForm(request.POST)
         if form.is_valid():
-            # Check if real-time execution was requested
-            use_realtime = 'realtime' in request.POST
-
-            # Combine default arguments with user-provided arguments
-            arguments = executable.command_args
-            if form.cleaned_data['arguments']:
-                if arguments:
-                    arguments += ' ' + form.cleaned_data['arguments']
-                else:
-                    arguments = form.cleaned_data['arguments']
-
-            # Get the full path to the executable
-            executable_path = executable.get_full_path()
-            if not executable_path or not os.path.exists(executable_path):
-                messages.error(request, "El archivo ejecutable no está disponible")
-                return redirect('list_executables')
-
-            # Execute the file (with or without real-time streaming)
-            result = execute_file(executable_path, arguments, realtime=use_realtime)
-
-            # Create execution log
-            execution_uuid = result.get('execution_id', str(uuid.uuid4()))
-
-            # For real-time execution, we create a log entry that will be updated later
-            log = ExecutionLog(
-                execution_uuid=execution_uuid,
-                executable=executable,
-                user=request.user,
-                success=None if use_realtime else result.get('success', False),
-                output='' if use_realtime else result.get('output', ''),
-                exit_code=None if use_realtime else result.get('exit_code', -1),
-                ip_address=request.META.get('REMOTE_ADDR'),
-                is_realtime=use_realtime,
-                completed=not use_realtime
-            )
-            log.save()
-
-            # Update executable statistics
-            executable.last_executed = timezone.now()
-            executable.execution_count += 1
-            executable.save()
-
-            if use_realtime:
-                # For real-time execution, redirect to the real-time view
-                return redirect('realtime_execution', execution_id=execution_uuid)
-            else:
-                # For traditional execution, show the result page
-                context = {
-                    'executable': executable,
-                    'result': result,
-                    'log': log,
-                }
-                return render(request, 'ejecutor/execution_result.html', context)
+            args = form.cleaned_data.get('command_args', '')
+            manager = ExecutionManager()
+            execution_id = manager.start_execution(executable, args, request.user)
+            return redirect('realtime_execution', execution_id=execution_id)
     else:
-        form = ExecutableArgumentsForm()
-
-    context = {
+        form = ExecutableArgumentsForm(initial={'command_args': executable.command_args})
+    return render(request, 'ejecutor/execute_executable.html', {
         'executable': executable,
         'form': form,
-    }
-    return render(request, 'ejecutor/execute_executable.html', context)
+    })
 
 @login_required
 def realtime_execution(request, execution_id):
-    """View for displaying real-time execution results."""
-    log = get_object_or_404(ExecutionLog, execution_uuid=execution_id)
-    executable = log.executable
+    """Vista para mostrar la ejecución en tiempo real."""
+    execution = get_object_or_404(ExecutionLog, execution_uuid=execution_id)
+    return render(request, 'ejecutor/realtime_execution.html', {
+        'execution': execution,
+    })
 
-    context = {
-        'executable': executable,
-        'log': log,
-        'execution_id': execution_id
-    }
-    return render(request, 'ejecutor/realtime_execution.html', context)
-
-@user_passes_test(is_admin)
+# Admin views
+@staff_required
 def admin_dashboard(request):
     """Administrative dashboard."""
     executables = ExecutableFile.objects.all()
@@ -243,115 +163,96 @@ def admin_dashboard(request):
     }
     return render(request, 'ejecutor/admin_dashboard.html', context)
 
-@user_passes_test(is_admin)
+@staff_required
+@ensure_csrf_cookie_wrapped
 def upload_executable(request):
-    """View for uploading new executable files."""
+    """Vista para subir nuevos archivos ejecutables."""
+    if not request.user.is_authenticated or not request.user.is_staff:
+        messages.error(request, "Acceso denegado. Se requieren privilegios de administrador.")
+        return redirect('home')
+
     if request.method == 'POST':
         form = ExecutableFileUploadForm(request.POST, request.FILES)
         if form.is_valid():
             executable = form.save(commit=False)
-            executable.type = 'uploaded'
-            executable.uploader = request.user
+            executable.uploaded_by = request.user
             executable.save()
-
-            messages.success(request, "Archivo ejecutable subido correctamente")
+            messages.success(request, f"Archivo {executable.name} subido exitosamente.")
             return redirect('admin_dashboard')
     else:
         form = ExecutableFileUploadForm()
+    
+    return render(request, 'ejecutor/upload_form.html', {'form': form})
 
-    context = {
-        'form': form,
-        'title': 'Subir Archivo Ejecutable',
-    }
-    return render(request, 'ejecutor/upload_form.html', context)
-
-@user_passes_test(is_admin)
+@staff_required
+@ensure_csrf_cookie_wrapped
 def add_preinstalled(request):
-    """View for adding preinstalled executable files."""
+    """Vista para agregar ejecutables preinstalados."""
     if request.method == 'POST':
         form = PreinstalledExecutableForm(request.POST)
         if form.is_valid():
             executable = form.save(commit=False)
-            executable.uploader = request.user
+            executable.uploaded_by = request.user
             executable.save()
-
-            messages.success(request, "Ejecutable preinstalado registrado correctamente")
+            messages.success(request, f"Ejecutable {executable.name} agregado exitosamente.")
             return redirect('admin_dashboard')
     else:
         form = PreinstalledExecutableForm()
-
-    context = {
+    
+    return render(request, 'ejecutor/upload_form.html', {
         'form': form,
-        'title': 'Registrar Ejecutable Preinstalado',
-    }
-    return render(request, 'ejecutor/upload_form.html', context)
-
-@user_passes_test(is_admin)
-def edit_executable(request, executable_id):
-    """View for editing executable files."""
-    executable = get_object_or_404(ExecutableFile, id=executable_id)
-
-    if executable.type == 'uploaded':
-        form_class = ExecutableFileUploadForm
-    else:
-        form_class = PreinstalledExecutableForm
-
-    if request.method == 'POST':
-        form = form_class(request.POST, request.FILES, instance=executable)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Ejecutable actualizado correctamente")
-            return redirect('admin_dashboard')
-    else:
-        form = form_class(instance=executable)
-
-    context = {
-        'form': form,
-        'executable': executable,
-        'title': 'Editar Ejecutable',
-    }
-    return render(request, 'ejecutor/upload_form.html', context)
-
-@user_passes_test(is_admin)
-def toggle_executable(request, executable_id):
-    """Toggle the active status of an executable."""
-    executable = get_object_or_404(ExecutableFile, id=executable_id)
-    executable.is_active = not executable.is_active
-    executable.save()
-
-    return JsonResponse({
-        'success': True,
-        'is_active': executable.is_active,
+        'preinstalled': True
     })
 
-@user_passes_test(is_admin)
-def execution_logs(request):
-    """View execution logs."""
-    logs = ExecutionLog.objects.all().order_by('-executed_at')
-
-    context = {
-        'logs': logs,
-    }
-    return render(request, 'ejecutor/execution_logs.html', context)
-
-@csrf_exempt
-def check_admin_key_combination(request):
-    """Check if the admin key combination was pressed.
-
-    This is an AJAX endpoint that checks for a specific key combination
-    that reveals the admin section.
-    """
+@staff_required
+@ensure_csrf_cookie_wrapped
+def edit_executable(request, executable_id):
+    """Vista para editar archivos ejecutables existentes."""
+    executable = get_object_or_404(ExecutableFile, pk=executable_id)
+    
     if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            key_combination = data.get('key_combination')
+        form = ExecutableFileUploadForm(request.POST, request.FILES, instance=executable)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Archivo {executable.name} actualizado exitosamente.")
+            return redirect('admin_dashboard')
+    else:
+        form = ExecutableFileUploadForm(instance=executable)
+    
+    return render(request, 'ejecutor/upload_form.html', {
+        'form': form,
+        'executable': executable,
+        'editing': True
+    })
 
-            # Check for the specific key combination (e.g., Ctrl+Alt+A)
-            if key_combination == 'ctrl+alt+a':
-                return JsonResponse({'success': True, 'redirect': reverse('admin_dashboard')})
+@staff_required
+@ensure_csrf_cookie_wrapped
+def toggle_executable(request, executable_id):
+    """Vista para activar/desactivar ejecutables."""
+    executable = get_object_or_404(ExecutableFile, pk=executable_id)
+    executable.is_active = not executable.is_active
+    executable.save()
+    
+    status = "activado" if executable.is_active else "desactivado"
+    messages.success(request, f"Ejecutable {executable.name} {status} exitosamente.")
+    return redirect('admin_dashboard')
 
-            return JsonResponse({'success': False})
-        except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)})
+@staff_required
+@ensure_csrf_cookie_wrapped
+def execution_logs(request):
+    """Vista para ver logs de ejecución."""
+    logs = ExecutionLog.objects.all().order_by('-executed_at')
+    return render(request, 'ejecutor/execution_logs.html', {'logs': logs})
 
-    return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+@staff_required
+@ensure_csrf_cookie_wrapped
+def check_admin_key_combination(request):
+    """Endpoint para verificar combinación de teclas de admin."""
+    data = json.loads(request.body)
+    key_combination = data.get('combination', '')
+    
+    is_valid = request.user.is_authenticated and request.user.is_staff
+    return JsonResponse({
+        'valid': is_valid,
+        'redirect': reverse('admin_dashboard') if is_valid else None
+    })

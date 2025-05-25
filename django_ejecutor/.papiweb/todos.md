@@ -1,5 +1,5 @@
-# Tareas del Proyecto Django Ejecutor
-
+# Papiweb Tareas del Proyecto Django Ejecutor
+ 
 ## Visualización de resultados en tiempo real
 - [x] Instalar Django Channels para WebSockets
 - [x] Configurar el enrutamiento de WebSockets
